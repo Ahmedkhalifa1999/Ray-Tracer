@@ -31,7 +31,7 @@ public:
 		ImGui::End();
 		ImGui::PopStyleVar();
 
-		render();
+		//render();
 	}
 
 	void render() 
@@ -44,9 +44,27 @@ public:
 			m_ImageData = new uint32_t[m_ViewportHeight * m_ViewportWidth];
 		}
 
-		for (uint32_t i = 0; i < m_ViewportHeight * m_ViewportWidth; i++) 
+		for (uint32_t i = 0; i < m_ViewportHeight; i++) 
 		{
-			m_ImageData[i] = Walnut::Random::UInt() | 0xff000000;
+			for (uint32_t j = 0; j < m_ViewportWidth; j++) {
+				float y_shift = j - ((float)m_ViewportWidth / 2);
+				float z_shift = i - ((float)m_ViewportHeight / 2);
+				float a = (camera_dir.x * camera_dir.x) + (camera_dir.y * camera_dir.y) + (camera_dir.z * camera_dir.z);
+				float b = 2 * ((camera_pos.x * camera_dir.x) - (m_Sphere.x * camera_dir.x)
+							 + ((camera_pos.y + y_shift) * camera_dir.y) - (m_Sphere.y * camera_dir.y)
+							 + ((camera_pos.z + z_shift) * camera_dir.z) - (m_Sphere.z * camera_dir.z));
+				float c = (camera_pos.x * camera_pos.x) - (2 * camera_pos.x * m_Sphere.x) + (m_Sphere.x * m_Sphere.x)
+						+ ((camera_pos.y + y_shift) * (camera_pos.y + y_shift)) - (2 * (camera_pos.y + y_shift) * m_Sphere.y) + (m_Sphere.y * m_Sphere.y)
+						+ ((camera_pos.z + z_shift) * (camera_pos.z + z_shift)) - (2 * (camera_pos.z + z_shift) * m_Sphere.z) + (m_Sphere.z * m_Sphere.z)
+						- (m_Sphere.r * m_Sphere.r);
+				float disc = (b * b) - (4 * a * c);
+				if (disc >= 0) {
+					m_ImageData[i * m_ViewportWidth + j] = Walnut::Random::UInt() | 0xff000000;
+				}
+				else {
+					m_ImageData[i * m_ViewportWidth + j] = 0xff000000;
+				}
+			}
 		}
 
 		m_Image->SetData(m_ImageData);
@@ -58,6 +76,25 @@ private:
 	uint32_t* m_ImageData = nullptr;
 	uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 	float m_LastRenderTime = 0;
+
+	typedef struct {
+		float x;
+		float y;
+		float z;
+	}pos3D, vec3D;
+
+	typedef struct {
+		float x;
+		float y;
+		float z;
+		float r;
+	}sphere3D;
+
+	pos3D camera_pos = { 0, 0, 0 };
+	vec3D camera_dir = { 1, 0, 0 };
+	
+	sphere3D m_Sphere = { 5, 0, 0, 250 };
+
 };
 
 Walnut::Application* Walnut::CreateApplication(int argc, char** argv)
