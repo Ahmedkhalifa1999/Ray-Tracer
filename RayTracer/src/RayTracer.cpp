@@ -2,8 +2,9 @@
 #include "Walnut/EntryPoint.h"
 
 #include "Walnut/Image.h"
-#include "Walnut/Random.h"
 #include "Walnut/Timer.h"
+
+#include "Renderer.h"
 
 class ExampleLayer : public Walnut::Layer
 {
@@ -11,7 +12,8 @@ public:
 	virtual void OnUIRender() override
 	{
 		ImGui::Begin("Settings");
-		ImGui::Text("Last Render: %.3fms", m_LastRenderTime);
+		ImGui::Text("Frame Time: %.1fms", m_LastRenderTime);
+		ImGui::Text("Frame Per Second: %.1ffps", 1000/m_LastRenderTime);
 		if (ImGui::Button("Render")) 
 		{
 			render();
@@ -25,75 +27,29 @@ public:
 		m_ViewportWidth = ImGui::GetContentRegionAvail().x;
 		m_ViewportHeight = ImGui::GetContentRegionAvail().y;
 
-		if (m_Image)
-			ImGui::Image(m_Image->GetDescriptorSet(), { (float)m_Image->GetWidth(), (float)m_Image->GetHeight() });
+		auto image = m_Renderer.GetFinalImage();
+		if (image)
+			ImGui::Image(image->GetDescriptorSet(), { (float)image->GetWidth(), (float)image->GetHeight() }, ImVec2(0,1), ImVec2(1,0));
 
 		ImGui::End();
 		ImGui::PopStyleVar();
 
-		//render();
+		render();
 	}
 
 	void render() 
 	{
 		Walnut::Timer timer;
-		if (!m_Image || m_ViewportWidth != m_Image->GetWidth() || m_ViewportHeight != m_Image->GetHeight()) 
-		{
-			m_Image = std::make_shared<Walnut::Image>(m_ViewportWidth, m_ViewportHeight, Walnut::ImageFormat::RGBA);
-			delete[] m_ImageData;
-			m_ImageData = new uint32_t[m_ViewportHeight * m_ViewportWidth];
-		}
-
-		for (uint32_t i = 0; i < m_ViewportHeight; i++) 
-		{
-			for (uint32_t j = 0; j < m_ViewportWidth; j++) {
-				float y_shift = j - ((float)m_ViewportWidth / 2);
-				float z_shift = i - ((float)m_ViewportHeight / 2);
-				float a = (camera_dir.x * camera_dir.x) + (camera_dir.y * camera_dir.y) + (camera_dir.z * camera_dir.z);
-				float b = 2 * ((camera_pos.x * camera_dir.x) - (m_Sphere.x * camera_dir.x)
-							 + ((camera_pos.y + y_shift) * camera_dir.y) - (m_Sphere.y * camera_dir.y)
-							 + ((camera_pos.z + z_shift) * camera_dir.z) - (m_Sphere.z * camera_dir.z));
-				float c = (camera_pos.x * camera_pos.x) - (2 * camera_pos.x * m_Sphere.x) + (m_Sphere.x * m_Sphere.x)
-						+ ((camera_pos.y + y_shift) * (camera_pos.y + y_shift)) - (2 * (camera_pos.y + y_shift) * m_Sphere.y) + (m_Sphere.y * m_Sphere.y)
-						+ ((camera_pos.z + z_shift) * (camera_pos.z + z_shift)) - (2 * (camera_pos.z + z_shift) * m_Sphere.z) + (m_Sphere.z * m_Sphere.z)
-						- (m_Sphere.r * m_Sphere.r);
-				float disc = (b * b) - (4 * a * c);
-				if (disc >= 0) {
-					m_ImageData[i * m_ViewportWidth + j] = Walnut::Random::UInt() | 0xff000000;
-				}
-				else {
-					m_ImageData[i * m_ViewportWidth + j] = 0xff000000;
-				}
-			}
-		}
-
-		m_Image->SetData(m_ImageData);
+		
+		m_Renderer.OnResize(m_ViewportWidth, m_ViewportHeight);
+		m_Renderer.Render();
 
 		m_LastRenderTime = timer.ElapsedMillis();
 	}
 private:
-	std::shared_ptr<Walnut::Image> m_Image;
-	uint32_t* m_ImageData = nullptr;
+	Renderer m_Renderer;
 	uint32_t m_ViewportWidth = 0, m_ViewportHeight = 0;
 	float m_LastRenderTime = 0;
-
-	typedef struct {
-		float x;
-		float y;
-		float z;
-	}pos3D, vec3D;
-
-	typedef struct {
-		float x;
-		float y;
-		float z;
-		float r;
-	}sphere3D;
-
-	pos3D camera_pos = { 0, 0, 0 };
-	vec3D camera_dir = { 1, 0, 0 };
-	
-	sphere3D m_Sphere = { 5, 0, 0, 250 };
 
 };
 
