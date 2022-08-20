@@ -2,6 +2,21 @@
 
 #include "Walnut/Random.h"
 
+namespace utils {
+
+	static uint32_t ConvertToRGBA(const glm::vec4& color)
+	{
+		uint8_t r = (uint8_t)(color.r * 255.0f);
+		uint8_t g = (uint8_t)(color.g * 255.0f);
+		uint8_t b = (uint8_t)(color.b * 255.0f);
+		uint8_t a = (uint8_t)(color.a * 255.0f);
+
+		uint32_t result = (a << 24) | (b << 16) | (g << 8) | r;
+		return result;
+	}
+
+}
+
 void Renderer::OnResize(uint32_t width, uint32_t height)
 {
 	if (m_FinalImage)
@@ -21,16 +36,21 @@ void Renderer::OnResize(uint32_t width, uint32_t height)
 	m_ImageData = new uint32_t[width * height];
 }
 
-void Renderer::Render()
-{
+void Renderer::Render(const Camera& camera)
+{	
+	Ray ray;
+	ray.Origin = camera.GetPosition();
+
 	//Render every pixel
 	for (uint32_t y = 0; y < m_FinalImage->GetHeight(); y++)
 	{
 		for (uint32_t x = 0; x < m_FinalImage->GetWidth(); x++) {
 
-			glm::vec2 coord = { x / (float)m_FinalImage->GetWidth(), y / (float)m_FinalImage->GetHeight() };
-			coord = (coord * 2.0f) - 1.0f;
-			m_ImageData[y * m_FinalImage->GetWidth() + x] = PerPixel(coord);
+			ray.Direction = camera.GetRayDirections()[x + y * m_FinalImage->GetWidth()];
+
+			glm::vec4 color = TraceRay(ray);
+			color = glm::clamp(color, glm::vec4(0.0f), glm::vec4(1.0f));
+			m_ImageData[y * m_FinalImage->GetWidth() + x] = utils::ConvertToRGBA(color);
 			
 		}
 	}
@@ -38,40 +58,33 @@ void Renderer::Render()
 	m_FinalImage->SetData(m_ImageData);
 }
 
-uint32_t Renderer::PerPixel(glm::vec2 coord)
+glm::vec4 Renderer::TraceRay(const Ray& ray)
 {
-	//The Cherno Video Version from Video 3
-	/*
-	glm::vec3 rayOrigin(0.0f, 0.0f, 2.0f);
-	glm::vec3 rayDirection(coord.x, coord.y, -1.0f);
 	float radius = 0.5f;
 	// rayDirection = glm::normalize(rayDirection);
 
 
-	float a = glm::dot(rayDirection, rayDirection);
-	float b = 2.0f * glm::dot(rayOrigin, rayDirection);
-	float c = glm::dot(rayOrigin, rayOrigin) - radius * radius;
-	float disc = b * b - 4.0f * a * c;
+	float a = glm::dot(ray.Direction, ray.Direction);
+	float b = 2.0f * glm::dot(ray.Origin, ray.Direction);
+	float c = glm::dot(ray.Origin, ray.Origin) - radius * radius;
+	
+	float discriminant = b * b - 4.0f * a * c;
 
-	return (disc >= 0.0f) ? 0xffff00ff : 0xff000000;
-	*/
+	if (discriminant < 0.0f)
+		return glm::vec4(0, 0, 0, 1);
 
-	//My version from Video 2 refactored
-	float y_shift = (coord.x * m_FinalImage->GetWidth()) - ((float)m_FinalImage->GetWidth() / 2);
-	float z_shift = (coord.y * m_FinalImage->GetHeight()) - ((float)m_FinalImage->GetHeight() / 2);
-	float a = (camera_dir.x * camera_dir.x) + (camera_dir.y * camera_dir.y) + (camera_dir.z * camera_dir.z);
-	float b = 2 * ((camera_pos.x * camera_dir.x) - (m_Sphere.x * camera_dir.x)
-		+ ((camera_pos.y + y_shift) * camera_dir.y) - (m_Sphere.y * camera_dir.y)
-		+ ((camera_pos.z + z_shift) * camera_dir.z) - (m_Sphere.z * camera_dir.z));
-	float c = (camera_pos.x * camera_pos.x) - (2 * camera_pos.x * m_Sphere.x) + (m_Sphere.x * m_Sphere.x)
-		+ ((camera_pos.y + y_shift) * (camera_pos.y + y_shift)) - (2 * (camera_pos.y + y_shift) * m_Sphere.y) + (m_Sphere.y * m_Sphere.y)
-		+ ((camera_pos.z + z_shift) * (camera_pos.z + z_shift)) - (2 * (camera_pos.z + z_shift) * m_Sphere.z) + (m_Sphere.z * m_Sphere.z)
-		- (m_Sphere.r * m_Sphere.r);
-	float disc = (b * b) - (4.0f * a * c);
-	if (disc >= 0.0f) {
-		return 0xffff00ff;
-	}
-	else {
-		return 0xff000000;
-	}
+
+	float t0 = (-b + glm::sqrt(discriminant)) / (2.0f * a);
+	float closestT = (-b - glm::sqrt(discriminant)) / (2.0f * a);
+
+	glm::vec3 hitPoint = ray.Origin + ray.Direction * closestT;
+	glm::vec3 normal = glm::normalize(hitPoint);
+
+	glm::vec3 lightDir = glm::normalize(glm::vec3(-1, -1, -1));
+
+	float d = glm::max(glm::dot(normal, -lightDir), 0.0f);
+
+	glm::vec3 sphereColor(1, 0, 1);
+	sphereColor *= d;
+	return glm::vec4(sphereColor, 1.0f);
 }
