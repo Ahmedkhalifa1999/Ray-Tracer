@@ -45,6 +45,9 @@ private:
 	std::shared_ptr<Walnut::Image> m_FinalImage;
 	Settings m_Settings;
 
+	std::vector<int> m_ImageHorizontalIter;
+	std::vector<int> m_ImageVerticalIter;
+
 	uint32_t* m_ImageData = nullptr;
 	glm::vec4* m_AccumulationData = nullptr;
 
